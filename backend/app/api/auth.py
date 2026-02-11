@@ -1,114 +1,139 @@
+"""
+Authentication API endpoints.
+Handles user registration, login, and token management.
+"""
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from google.oauth2 import id_token
-from google.auth.transport import requests as google_requests
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from datetime import timedelta
+from typing import Optional
 
-from database import get_db
-from models import User
-from schemas import Token, GoogleAuthRequest, UserResponse
-from backend.app.api.auth import create_access_token
-from config import settings
+from app.database import get_db
+from app.models.user import User
+from app.models.schemas import UserCreate, UserResponse, Token
+from app.services.auth_service import AuthService
 
 router = APIRouter()
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
 
-@router.post("/google", response_model=Token)
-async def google_auth(
-    auth_request: GoogleAuthRequest,
-    db: Session = Depends(get_db)
+@router.post("/register", response_model=UserResponse)
+async def register_user(
+    user_data: UserCreate,
+    db: AsyncSession = Depends(get_db)
 ):
     """
-    Authenticate user with Google OAuth token
-    """
-    try:
-        # Verify the Google token
-        idinfo = id_token.verify_oauth2_token(
-            auth_request.token,
-            google_requests.Request(),
-            settings.GOOGLE_CLIENT_ID
-        )
-        
-        # Extract user information
-        email = idinfo.get("email")
-        google_id = idinfo.get("sub")
-        full_name = idinfo.get("name")
-        picture = idinfo.get("picture")
-        
-        if not email or not google_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid Google token"
-            )
-        
-        # Check if user exists
-        user = db.query(User).filter(User.google_id == google_id).first()
-        
-        if not user:
-            # Create new user
-            username = email.split("@")[0]
-            
-            # Ensure unique username
-            counter = 1
-            base_username = username
-            while db.query(User).filter(User.username == username).first():
-                username = f"{base_username}{counter}"
-                counter += 1
-            
-            user = User(
-                email=email,
-                username=username,
-                full_name=full_name,
-                google_id=google_id,
-                profile_picture=picture
-            )
-            db.add(user)
-            db.commit()
-            db.refresh(user)
-        
-        # Create access token
-        access_token = create_access_token(
-            data={"sub": user.id, "email": user.email}
-        )
-        
-        return {"access_token": access_token, "token_type": "bearer"}
+    Register a new user.
     
-    except ValueError as e:
+    Args:
+        user_data: User registration data
+        db: Database session
+        
+    Returns:
+        Created user information
+        
+    Raises:
+        HTTPException: If username or email already exists
+    """
+    # Check if user already exists
+    stmt = select(User).where(
+        (User.email == user_data.email) | (User.username == user_data.username)
+    )
+    result = await db.execute(stmt)
+    existing_user = result.scalar_one_or_none()
+    
+    if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid Google token"
+            detail="Username or email already registered"
         )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Authentication failed: {str(e)}"
-        )
+    
+    # Create new user
+    hashed_password = AuthService.get_password_hash(user_data.password)
+    user = User(
+        email=user_data.email,
+        username=user_data.username,
+        full_name=user_data.full_name,
+        hashed_password=hashed_password,
+        is_active=True
+    )
+    
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    
+    return user
 
-@router.post("/verify-token")
-async def verify_token_endpoint(
-    token: str,
-    db: Session = Depends(get_db)
+@router.post("/token", response_model=Token)
+async def login_for_access_token(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: AsyncSession = Depends(get_db)
 ):
     """
-    Verify if a JWT token is valid
-    """
-    from backend.app.api.auth import verify_token
+    Login user and get access token.
     
-    try:
-        token_data = verify_token(token)
-        user = db.query(User).filter(User.id == token_data.user_id).first()
+    Args:
+        form_data: Login form data (username, password)
+        db: Database session
         
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found"
-            )
+    Returns:
+        JWT access token
         
-        return {
-            "valid": True,
-            "user_id": user.id,
-            "email": user.email
-        }
-    except Exception:
+    Raises:
+        HTTPException: If credentials are invalid
+    """
+    user = await AuthService.authenticate_user(
+        db, form_data.username, form_data.password
+    )
+    
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token"
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
         )
+    
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Inactive user"
+        )
+    
+    # Create access token
+    access_token_expires = timedelta(
+        minutes=AuthService.ACCESS_TOKEN_EXPIRE_MINUTES
+    )
+    access_token = AuthService.create_access_token(
+        data={"sub": user.username},
+        expires_delta=access_token_expires
+    )
+    
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@router.get("/me", response_model=UserResponse)
+async def get_current_user_info(
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get current authenticated user information.
+    
+    Args:
+        token: JWT access token
+        db: Database session
+        
+    Returns:
+        Current user information
+        
+    Raises:
+        HTTPException: If token is invalid
+    """
+    user = await AuthService.get_current_user(db, token)
+    
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials"
+        )
+    
+    return user
