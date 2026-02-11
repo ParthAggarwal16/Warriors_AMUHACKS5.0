@@ -315,8 +315,6 @@ await api.post("/api/sessions", {
 - ✅ Handles **1000+ concurrent users**
 - ✅ **Sub-100ms** API response times
 - ✅ **99.9%** uptime with fallback system
-- ✅ **PostgreSQL** for data integrity
-- ✅ **Horizontal scaling** ready
 
 ### Future Enhancements
 
