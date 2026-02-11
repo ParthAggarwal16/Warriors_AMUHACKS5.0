@@ -1,18 +1,17 @@
 """
 Qdrant vector database service for conversation memory.
 Handles vector storage, retrieval, and pruning of conversation history.
-Only warns if collection or payload indexes are missing.
 """
 
 from typing import List, Dict, Any
 from datetime import datetime
 
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, Filter, FieldCondition, MatchValue
+from qdrant_client.models import Filter, FieldCondition, MatchValue
 
-# LangChain 1.x imports
+# Updated LangChain Qdrant wrapper
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.vectorstores import Qdrant
+from langchain_qdrant import Qdrant
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.config import settings
@@ -37,11 +36,17 @@ class QdrantService:
             chunk_overlap=50,
         )
 
+        self.vector_store = Qdrant(
+            client=self.client,
+            collection_name=settings.QDRANT_COLLECTION_NAME,
+            embeddings=self.embeddings,
+        )
+
         self._initialize_collection()
 
     # ----------------------- Collection & Payload Check ----------------------- #
     def _initialize_collection(self):
-        """Check if collection exists, warn if not, and check payload indexes"""
+        """Check if collection exists and payload indexes"""
         try:
             collections = self.client.get_collections().collections
             collection_names = [col.name for col in collections]
@@ -60,7 +65,7 @@ class QdrantService:
     def _check_payload_indexes(self):
         """Check payload indexes and warn if missing"""
         try:
-            required_fields = ["user_id", "conversation_id",]
+            required_fields = ["user_id", "role", "timestamp"]
 
             existing_indexes = self.client.get_payload_indexes(
                 collection_name=settings.QDRANT_COLLECTION_NAME
@@ -82,8 +87,7 @@ class QdrantService:
     # ----------------------- Store Conversation ----------------------- #
     async def store_conversation(
         self,
-        user_id: int,
-        conversation_id: str,
+        user_id: str,
         messages: List[Dict[str, Any]],
     ):
         """Store conversation messages in vector database"""
@@ -99,25 +103,20 @@ class QdrantService:
                         metadatas.append(
                             {
                                 "user_id": str(user_id),
-                                "conversation_id": conversation_id,
                                 "role": message.get("role", "user"),
                                 "timestamp": datetime.now().isoformat(),
-                                "page_content": chunk,
                             }
                         )
 
             if documents:
-                vector_store = Qdrant(
-                    client=self.client,
-                    collection_name=settings.QDRANT_COLLECTION_NAME,
-                    embeddings=self.embeddings,
-                )
-
-                vector_store.add_texts(
+                self.vector_store.add_texts(
                     texts=documents,
                     metadatas=metadatas,
                 )
-                print(f"Storing messages for user_id={user_id}, conversation_id={conversation_id}")
+                # Make sure vectors are flushed to Qdrant
+                self.client.flush(collection_name=settings.QDRANT_COLLECTION_NAME)
+
+                print(f"Storing messages for user_id={user_id}")
                 for m in messages:
                     print(m["role"], ":", m["content"])
 
@@ -127,21 +126,16 @@ class QdrantService:
     # ----------------------- Retrieve Messages ----------------------- #
     async def retrieve_recent_messages(
         self,
-        user_id: int,
-        conversation_id: str,
+        user_id: str,
         limit: int = 5,
-    ):
-        """Retrieve the most recent N messages for context"""
+    ) -> List[Dict[str, Any]]:
+        """Retrieve the most recent N messages for context using user_id only"""
         try:
             filter_condition = Filter(
                 must=[
                     FieldCondition(
                         key="user_id",
                         match=MatchValue(value=str(user_id)),
-                    ),
-                    FieldCondition(
-                        key="conversation_id",
-                        match=MatchValue(value=conversation_id),
                     ),
                 ]
             )
@@ -157,7 +151,7 @@ class QdrantService:
             messages = [
                 {
                     "role": point.payload.get("role", "user"),
-                    "content": point.payload.get("page_content", ""),
+                    "content": point.payload.get("page_content", "") or point.payload.get("text", ""),
                     "timestamp": point.payload.get("timestamp", ""),
                     "point_id": point.id,
                 }
@@ -165,7 +159,7 @@ class QdrantService:
             ]
 
             messages.sort(key=lambda x: x.get("timestamp", ""))
-            print(f"Retrieved {len(messages)} messages for user_id={user_id}, conversation_id={conversation_id}")
+            print(f"Retrieved {len(messages)} messages for user_id={user_id}")
             for m in messages:
                 print(m["role"], ":", m["content"])
             return messages
@@ -177,13 +171,12 @@ class QdrantService:
     # ----------------------- Prune Old Messages ----------------------- #
     async def prune_old_messages(
         self,
-        user_id: int,
-        conversation_id: str,
+        user_id: str,
         keep_last: int = 5,
     ):
         """Delete older messages keeping only the last N"""
         messages = await self.retrieve_recent_messages(
-            user_id=user_id, conversation_id=conversation_id, limit=1000
+            user_id=user_id, limit=1000
         )
         if len(messages) > keep_last:
             old_points = [m["point_id"] for m in messages[:-keep_last]]
@@ -198,14 +191,13 @@ class QdrantService:
     # ----------------------- Chat With Memory ----------------------- #
     async def chat_with_memory(
         self,
-        user_id: int,
-        conversation_id: str,
+        user_id: str,
         user_query: str,
         llm_chain,
         memory_limit: int = 5,
     ) -> str:
         """
-        Handle a user query with memory context:
+        Handle a user query with memory context using user_id only:
         - Retrieves last N messages
         - Combines with new query
         - Sends to LLM
@@ -213,7 +205,7 @@ class QdrantService:
         - Prunes older messages
         """
         recent_messages = await self.retrieve_recent_messages(
-            user_id=user_id, conversation_id=conversation_id, limit=memory_limit
+            user_id=user_id, limit=memory_limit
         )
 
         context_text = "\n".join([m["content"] for m in recent_messages])
@@ -223,7 +215,6 @@ class QdrantService:
 
         await self.store_conversation(
             user_id=user_id,
-            conversation_id=conversation_id,
             messages=[
                 {"role": "user", "content": user_query},
                 {"role": "assistant", "content": ai_response},
@@ -231,7 +222,7 @@ class QdrantService:
         )
 
         await self.prune_old_messages(
-            user_id=user_id, conversation_id=conversation_id, keep_last=memory_limit
+            user_id=user_id, keep_last=memory_limit
         )
 
         return ai_response

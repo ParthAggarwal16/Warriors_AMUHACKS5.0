@@ -52,7 +52,7 @@ class Settings(BaseSettings):
 
     # LangChain Configuration
     LLM_PROVIDER: LLMProvider = LLMProvider.GROQ
-    TEMPERATURE: float = 0.7
+    TEMPERATURE: float = 1.0
     MAX_TOKENS: int = 4096
 
     # Memory Configuration

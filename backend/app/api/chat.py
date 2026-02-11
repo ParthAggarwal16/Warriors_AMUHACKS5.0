@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 import json
-import uuid
 from datetime import datetime
 
 from app.database import get_db
@@ -26,12 +25,12 @@ youtube_service = YouTubeService()
 @router.post("/message", response_model=ChatResponse)
 async def send_chat_message(
     chat_data: ChatMessage,
-    token: str = Depends(AuthService.verify_token),
+    token: dict = Depends(AuthService.verify_token),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Send a chat message and get AI response.
-    Memory retrieval and storage handled inside GroqService.
+    Memory retrieval and storage is handled internally using user_id only.
     """
     if not token:
         raise HTTPException(
@@ -40,19 +39,16 @@ async def send_chat_message(
         )
 
     user_id = token.get("user_id")
-    conversation_id = chat_data.conversation_id or str(uuid.uuid4())
 
     try:
-        # Generate AI response (memory handled inside service)
+        # Generate AI response (memory handled inside service using user_id only)
         response = await groq_service.generate_response(
             user_id=user_id,
-            conversation_id=conversation_id,
             message=chat_data.message
         )
 
         return ChatResponse(
             response=response,
-            conversation_id=conversation_id,
             timestamp=datetime.now()
         )
 
@@ -66,12 +62,12 @@ async def send_chat_message(
 @router.post("/stream")
 async def stream_chat_message(
     chat_data: ChatMessage,
-    token: str = Depends(AuthService.verify_token),
+    token: dict = Depends(AuthService.verify_token),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Stream chat response in real-time.
-    Memory retrieval and storage handled inside GroqService.
+    Memory retrieval is handled internally using user_id only.
     """
     if not token:
         raise HTTPException(
@@ -80,14 +76,12 @@ async def stream_chat_message(
         )
 
     user_id = token.get("user_id")
-    conversation_id = chat_data.conversation_id or str(uuid.uuid4())
 
     async def generate():
         """Generator function for streaming response"""
         try:
             async for chunk in groq_service.generate_streaming_response(
                 user_id=user_id,
-                conversation_id=conversation_id,
                 message=chat_data.message
             ):
                 yield f"data: {json.dumps({'chunk': chunk})}\n\n"
@@ -106,7 +100,7 @@ async def stream_chat_message(
 @router.post("/study-plan")
 async def generate_study_plan(
     plan_data: StudyPlanRequest,
-    token: str = Depends(AuthService.verify_token)
+    token: dict = Depends(AuthService.verify_token)
 ):
     """
     Generate a study plan for a given topic.
@@ -120,14 +114,11 @@ async def generate_study_plan(
     try:
         study_plan = await groq_service.create_study_plan(
             topic=plan_data.topic,
-            days=plan_data.days_available,
-            hours_per_day=plan_data.hours_per_day
+            user_id=token.get("user_id")  
         )
 
         return {
             "topic": plan_data.topic,
-            "days": plan_data.days_available,
-            "hours_per_day": plan_data.hours_per_day,
             "plan": study_plan,
             "generated_at": datetime.now()
         }
@@ -142,7 +133,7 @@ async def generate_study_plan(
 @router.post("/youtube-recommendations")
 async def get_youtube_recommendations(
     youtube_data: YouTubeRequest,
-    token: str = Depends(AuthService.verify_token)
+    token: dict = Depends(AuthService.verify_token)
 ):
     """
     Get YouTube video recommendations for a learning topic.
@@ -156,7 +147,7 @@ async def get_youtube_recommendations(
     try:
         recommendations = await youtube_service.get_educational_recommendations(
             topic=youtube_data.topic,
-            max_results=youtube_data.max_results
+            max_results=5
         )
 
         return {
@@ -175,7 +166,7 @@ async def get_youtube_recommendations(
 @router.post("/summarize")
 async def summarize_text(
     summarize_data: SummarizeRequest,
-    token: str = Depends(AuthService.verify_token)
+    token: dict = Depends(AuthService.verify_token)
 ):
     """
     Summarize long text content.
@@ -189,7 +180,7 @@ async def summarize_text(
     try:
         summary = await groq_service.summarize_text(
             text=summarize_data.text,
-            max_length=summarize_data.max_length
+            user_id=token.get("user_id")
         )
 
         return {
@@ -205,5 +196,3 @@ async def summarize_text(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error summarizing text: {str(e)}"
         )
-
-

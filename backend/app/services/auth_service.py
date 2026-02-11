@@ -70,6 +70,9 @@ class AuthService:
             settings.SECRET_KEY, 
             algorithm=settings.ALGORITHM
         )
+        
+
+
         return encoded_jwt
     
     @staticmethod

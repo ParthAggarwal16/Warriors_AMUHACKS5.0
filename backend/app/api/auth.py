@@ -25,7 +25,7 @@ async def register_user(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Register a new user.
+    Register a new user and return stable user_id.
     """
 
     # Check if user already exists
@@ -55,7 +55,7 @@ async def register_user(
 
     db.add(user)
     await db.commit()
-    await db.refresh(user)
+    await db.refresh(user)  # ✅ This gives you a stable `user.id` from DB
 
     return user
 
@@ -66,7 +66,7 @@ async def login_for_access_token(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Login user and return JWT access token.
+    Login user and return JWT access token with stable user_id.
     """
 
     # Authenticate user
@@ -94,8 +94,12 @@ async def login_for_access_token(
         minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
     )
 
+    # ✅ INCLUDE STABLE USER ID IN JWT
     access_token = AuthService.create_access_token(
-        data={"sub": user.username},
+        data={
+            "sub": user.username,
+            "user_id": user.id  # <-- stable numeric ID
+        },
         expires_delta=access_token_expires
     )
 

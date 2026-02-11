@@ -49,26 +49,24 @@ class TokenData(BaseModel):
 class ChatMessage(BaseModel):
     """Schema for chat messages"""
     message: str
-    conversation_id: Optional[str] = None
+    
 
 class ChatResponse(BaseModel):
     """Schema for chat responses"""
     response: str
-    conversation_id: str
+   
     timestamp: datetime
 
 class StudyPlanRequest(BaseModel):
     """Schema for study plan generation"""
     topic: str
-    days_available: int
-    hours_per_day: int = 2
-
+ 
 class YouTubeRequest(BaseModel):
     """Schema for YouTube recommendations"""
     topic: str
-    max_results: int = 5
+   
 
 class SummarizeRequest(BaseModel):
     """Schema for text summarization"""
     text: str
-    max_length: int = 300
+   

@@ -3,10 +3,9 @@ Groq API service using LangChain 1.x.
 Handles LLM interactions with Groq's models and Qdrant memory for conversation context.
 """
 
-from typing import Optional, AsyncGenerator, List, Dict, Any
+from typing import AsyncGenerator, List, Dict, Any
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage
-import uuid
 
 from app.config import settings
 from app.services.qdrant_service import QdrantService  # Qdrant memory service
@@ -53,57 +52,44 @@ Always aim to build confidence and foster a love for learning.
     async def generate_streaming_response(
         self,
         user_id: int,
-        conversation_id: str,
         message: str,
         memory_limit: int = 5,
     ) -> AsyncGenerator[str, None]:
         """
-        Stream AI response including memory context:
-        - Retrieves last N messages from Qdrant
-        - Combines with user query
-        - Streams response
-        - Stores messages and prunes older messages
+        Stream AI response including memory context using user_id only.
         """
         try:
-            # Retrieve previous messages inside this service
             recent_messages = await self.qdrant_service.retrieve_recent_messages(
                 user_id=user_id,
-                conversation_id=conversation_id,
                 limit=memory_limit
             )
 
-            # Build context
             context_text = "\n".join(
                 [f"{m['role'].capitalize()}: {m['content']}" for m in recent_messages]
             )
 
-            # Prepare messages for LLM
             messages = [SystemMessage(content=self.system_prompt)]
             if context_text:
                 messages.append(SystemMessage(content=f"Context:\n{context_text}"))
             messages.append(HumanMessage(content=message))
 
-            # Stream response and accumulate content for storage
             ai_response_content = ""
             async for chunk in self.llm.astream(messages):
                 if chunk.content:
                     ai_response_content += chunk.content
                     yield chunk.content
 
-            # Store user query + AI response in Qdrant
+            # Store conversation in Qdrant
             await self.qdrant_service.store_conversation(
                 user_id=user_id,
-                conversation_id=conversation_id,
                 messages=[
                     {"role": "user", "content": message},
                     {"role": "assistant", "content": ai_response_content},
                 ]
             )
 
-            # Prune old messages to keep only last N
             await self.qdrant_service.prune_old_messages(
                 user_id=user_id,
-                conversation_id=conversation_id,
                 keep_last=memory_limit
             )
 
@@ -111,28 +97,23 @@ Always aim to build confidence and foster a love for learning.
             yield f"I encountered an error: {str(e)}. Please try again."
 
     # ------------------------------------------------------------------
-    # Standard Response (non-stream, with memory)
+    # Standard Response (non-stream)
     # ------------------------------------------------------------------
     async def generate_response(
         self,
         user_id: int,
-        conversation_id: str,
         message: str,
         memory_limit: int = 5,
     ) -> str:
         """
-        Generate a standard AI response using memory context.
-        Retrieves previous messages automatically.
+        Generate AI response using memory context with user_id only.
         """
         try:
-            # Retrieve recent messages
             recent_messages = await self.qdrant_service.retrieve_recent_messages(
                 user_id=user_id,
-                conversation_id=conversation_id,
                 limit=memory_limit
             )
 
-            # Build context
             context_text = "\n".join(
                 [f"{m['role'].capitalize()}: {m['content']}" for m in recent_messages]
             )
@@ -142,23 +123,18 @@ Always aim to build confidence and foster a love for learning.
                 messages.append(SystemMessage(content=f"Context:\n{context_text}"))
             messages.append(HumanMessage(content=message))
 
-            # Get AI response
             response = await self.llm.ainvoke(messages)
 
-            # Store conversation
             await self.qdrant_service.store_conversation(
                 user_id=user_id,
-                conversation_id=conversation_id,
                 messages=[
                     {"role": "user", "content": message},
                     {"role": "assistant", "content": response.content},
                 ]
             )
 
-            # Prune old messages
             await self.qdrant_service.prune_old_messages(
                 user_id=user_id,
-                conversation_id=conversation_id,
                 keep_last=memory_limit
             )
 
@@ -172,29 +148,29 @@ Always aim to build confidence and foster a love for learning.
     # ------------------------------------------------------------------
     async def create_study_plan(
         self,
-        topic: str,
-        days: int,
-        hours_per_day: int = 2,
+        user_id:str,
+        topic: str
     ) -> str:
         prompt = f"""
-Create a detailed study plan for learning {topic}.
+                Create a detailed study plan for learning {topic}.
 
-Requirements:
-- Duration: {days} days
-- {hours_per_day} hours per day
-- Include daily objectives
-- Include recommended resources
-- Include practice exercises
-- Include assessment methods
-- Make it realistic and achievable
+                Ask questions to make the plan realistic:
+                - What is the deadline for learning this topic?
+                - How many hours per day can the student dedicate?
 
-Format clearly with structured sections.
-"""
+                Requirements:
+                - Include daily objectives
+                - Include recommended resources
+                - Include practice exercises
+                - Include assessment methods
+                - Make it realistic and achievable
+
+                Format clearly with structured sections.
+                """
         return await self.generate_response(
-            user_id=0,  # dummy user_id for study plan
-            conversation_id=str(topic),  # dummy conversation
+            user_id=user_id,  
             message=prompt,
-            memory_limit=0  # no memory needed
+            memory_limit=0  
         )
 
     # ------------------------------------------------------------------
@@ -202,19 +178,18 @@ Format clearly with structured sections.
     # ------------------------------------------------------------------
     async def summarize_text(
         self,
+        user_id:str,
         text: str,
-        max_length: int = 300,
     ) -> str:
         prompt = f"""
-Summarize the following text in {max_length} words or less:
+Summarize the following text in 300 words or less:
 
 {text}
 
 Focus on key ideas and keep it concise.
 """
         return await self.generate_response(
-            user_id=0,
-            conversation_id=str(hash(text)),
+            user_id=user_id, 
             message=prompt,
             memory_limit=0
         )
