@@ -452,14 +452,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## 📞 Contact & Support
-
-- **GitHub Issues:** [Report bugs or request features](https://github.com/your-team/studysyncpro-backend/issues)
-- **Email:** team.warriors@amuhacks.com
-- **Demo:** [Live Demo Link]
-- **Presentation:** [Slides Link]
-
----
 
 <div align="center">
 
@@ -472,8 +464,5 @@ _StudySyncPro: Where AI meets empathy, and academic recovery becomes inevitable.
 ---
 
 ⭐ **Star this repo** if you believe every student deserves a second chance!
-
-[![GitHub stars](https://img.shields.io/github/stars/your-team/studysyncpro-backend?style=social)](https://github.com/your-team/studysyncpro-backend)
-[![GitHub forks](https://img.shields.io/github/forks/your-team/studysyncpro-backend?style=social)](https://github.com/your-team/studysyncpro-backend)
 
 </div>
