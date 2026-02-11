@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StudySync Pro | AI-Powered Academic Recovery</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
+    <script src="https://unpkg.com/scrollreveal@4.0.9/dist/scrollreveal.min.js"></script>
+</head>
+<body>
+    <!-- ========== 🍅 POMODORO TOGGLE BUTTON & CARD ========== -->
+    <div class="action-buttons">
+        <button class="action-btn pomodoro-toggle" id="pomodoro-toggle">
+            <i class="fas fa-clock"></i>
+        </button>
+        <button class="action-btn theme-toggle" id="theme-toggle">
+            <i class="fas fa-moon"></i>
+        </button>
+    </div>
+
+    <!-- Pomodoro Popup Card (hidden by default) -->
+    <div class="pomodoro-card" id="pomodoro-card">
+        <div class="pomodoro-header">
+            <i class="fas fa-clock"></i>
+            <span>Pomodoro Timer</span>
+            <button class="pomodoro-close" id="pomodoro-close">&times;</button>
+        </div>
+        <div class="pomodoro-body">
+            <div class="timer-display">
+                <span id="pomodoro-minutes">25</span>:<span id="pomodoro-seconds">00</span>
+            </div>
+            <div class="timer-mode" id="pomodoro-mode">Work</div>
+            <div class="timer-controls">
+                <button id="pomodoro-start" class="timer-btn start"><i class="fas fa-play"></i></button>
+                <button id="pomodoro-pause" class="timer-btn pause"><i class="fas fa-pause"></i></button>
+                <button id="pomodoro-reset" class="timer-btn reset"><i class="fas fa-undo-alt"></i></button>
+            </div>
+            <div class="timer-settings">
+                <label>
+                    <span>Work (min)</span>
+                    <input type="number" id="pomodoro-work" min="1" max="60" value="25">
+                </label>
+                <label>
+                    <span>Break (min)</span>
+                    <input type="number" id="pomodoro-break" min="1" max="30" value="5">
+                </label>
+                <button id="pomodoro-apply" class="apply-btn">Apply</button>
+            </div>
+            <div class="sound-upload">
+                <label for="pomodoro-sound" class="sound-label">
+                    <i class="fas fa-music"></i> Upload Sound
+                </label>
+                <input type="file" id="pomodoro-sound" accept="audio/*">
+                <span id="sound-filename">No file selected</span>
+            </div>
+        </div>
+    </div>
+    <!-- ========== END POMODORO ========== -->
+    
+    <!-- Background Animation -->
+    <div class="background-animation" id="background-animation"></div>
+    
+    <!-- Header -->
+    <header>
+        <a href="#" class="logo">
+            <i class="fas fa-brain"></i>
+            StudySync<span>Pro</span>
+        </a>
+        <div class="mobile-menu">
+            <i class="fas fa-bars"></i>
+        </div>
+        <nav>
+            <ul>
+                <li><a href="#home">Home</a></li>
+                <li><a href="#features">How It Works</a></li>
+                <li><a href="#chat">Get Plan</a></li>
+            </ul>
+        </nav>
+        <button class="cta-button" id="start-btn">Start Recovery</button>
+    </header>
+    
+    <!-- Hero Section -->
+    <section class="hero" id="home">
+        <div class="hero-content">
+            <h1>AI-Powered <span>Academic Recovery</span> for Students</h1>
+            <p>Get a personalized catch-up plan based on your subjects, deadlines, learning pace, and stress level. Move from overwhelmed to on-track in weeks.</p>
+            <div class="hero-buttons">
+                <button class="cta-button" id="hero-start-btn">Create My Plan</button>
+                <button class="secondary-button">How It Works</button>
+            </div>
+            <div class="hero-stats">
+                <div class="stat">
+                    <div class="stat-value">94%</div>
+                    <div class="stat-label">Improved Grades</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">2.5x</div>
+                    <div class="stat-label">Faster Learning</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">78%</div>
+                    <div class="stat-label">Stress Reduction</div>
+                </div>
+            </div>
+        </div>
+        <div id="canvas-container">
+            <!-- 3D animation will be rendered here -->
+        </div>
+    </section>
+    
+    <!-- Features Section -->
+    <section id="features">
+        <h2 class="section-title">Personalized Academic Recovery</h2>
+        <p class="section-subtitle">Our AI engine analyzes multiple factors to create a plan tailored specifically to your situation and learning style.</p>
+        <div class="features">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <h3>Weak Fundamentals Analysis</h3>
+                <p>Identify and strengthen foundational knowledge gaps with adaptive learning paths that adjust to your progress.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="fas fa-calendar-alt"></i>
+                </div>
+                <h3>Intelligent Scheduling</h3>
+                <p>Smart scheduling that optimizes study sessions based on your available time, deadlines, and cognitive load.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="fas fa-brain"></i>
+                </div>
+                <h3>Stress-Aware Planning</h3>
+                <p>Incorporate breaks and mindfulness exercises based on your stress levels to prevent burnout and improve retention.</p>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Chat Section with Background Image -->
+
+        <section id="chat">
+            <h2 class="section-title">Your Personalized Recovery Plan</h2>
+            <p class="section-subtitle">Answer a few questions to get a tailored plan that adapts to your unique situation.</p>
+            <div class="chat-container">
+                <div class="chat-header">
+                    <div class="chat-header-info">
+                        <i class="fas fa-robot"></i>
+                        <h3>StudySync Assistant</h3>
+                    </div>
+                    <div class="chat-header-actions">
+                        
+                    </div>
+                </div>
+                <div class="chat-messages" id="chat-messages">
+                    <div class="message bot-message">
+                        <p><strong>Hello! I'm your StudySync Assistant.</strong></p>
+                        <p>I'll help you create a personalized academic recovery plan. Let's start with a few questions about your current situation.</p>
+                        <p>What's your name and which grade level are you in?</p>
+                    </div>
+                </div>
+                <div class="chat-input-container">
+                    <!-- ===== NEW ➕ BUTTON ===== -->
+                    <button class="chat-plus-btn" id="chat-plus-btn">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                    <!-- ===== END PLUS BUTTON ===== -->
+            <!-- ===== NEW POPUP MENU (hidden by default) ===== -->
+            <div class="chat-plus-popup" id="chat-plus-popup">
+                <ul>
+                    <li><i class="fas fa-comment-dots"></i> Q/A Bot</li>
+                    <li><i class="fas fa-file-alt"></i> Summarize Text</li>
+                    <li><i class="fas fa-video"></i> Recommend Videos</li>
+                </ul>
+            </div>
+            <!-- ===== END POPUP ===== -->
+                    <input type="text" class="chat-input" id="user-input" placeholder="Type your response here...">
+                    <button class="send-button" id="send-btn">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+ 
+    
+    <!-- Plan Display Section -->
+    <section id="plan-display">
+        <div class="plan-container" id="plan-container">
+            <div class="plan-header">
+                <h2>Your Personalized Academic Recovery Plan</h2>
+                <p>Generated based on your unique inputs and optimized for maximum efficiency</p>
+            </div>
+            <div class="plan-details" id="plan-details">
+                <!-- Plan details will be inserted here -->
+            </div>
+            <div class="timeline" id="timeline">
+                <!-- Timeline will be inserted here -->
+            </div>
+            <div style="text-align: center; margin-top: 3rem;">
+                <button class="cta-button" id="download-plan">Download Plan</button>
+                <button class="secondary-button" style="margin-left: 1rem;" id="schedule-plan">Add to Calendar</button>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <div class="footer-about">
+                <div class="footer-logo">StudySync<span>Pro</span></div>
+                <p>AI-powered academic recovery for students. Personalized plans that adapt to your learning style, pace, and stress levels.</p>
+            </div>
+            <div class="footer-links">
+                <h4>Product</h4>
+                <ul>
+                    <li><a href="#features">How It Works</a></li>
+                    <li><a href="#chat">Get Plan</a></li>
+                </ul>
+            </div>
+            <div class="footer-links">
+                <h4>TEAM : </h4>
+                <ul>
+                    <li><a href="https://github.com/Reaper4205">Nikhil_Kumar (UI/UX)</a></li>
+                    <li><a href="https://github.com/ParthAggarwal16">Parth_Aggarwal (Backend)</a></li>
+                    <li><a href="https://github.com/THE-NIKHIL07">Nikhil_Bisht (AI/ML)</a></li>
+                    <li><a href="https://github.com/Kamal-123-gupta">Kamal_Gupta (Web Dev) </a></li>
+                </ul>
+            </div>
+           
+        </div>
+        <div class="copyright">
+            <p>&copy; 2026 StudySync Pro. All rights reserved. | AI-Powered Academic Recovery Engine</p>
+        </div>
+    </footer>
+    
+    <script src="script.js" defer></script>
+</body>
+</html>
