@@ -3,7 +3,6 @@
 > **"The AI companion that refuses to let students give up on themselves. Because behind every backlog is a student who just needs the right support - and every student deserves a second chance at success."**
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![Docker](https://img.shields.io/badge/Docker-2CA5E0?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
 
@@ -66,7 +65,7 @@ Four specialized AI agents working together:
 └──────────────────────┬──────────────────────────────────────┘
                        │
 ┌──────────────────────▼──────────────────────────────────────┐
-│                  NoSql Database                         │
+│                  Sqlite Database                         │
 │    Users | Subjects | Tasks | Sessions | Conversations      │
 └──────────────────────────────────────────────────────────────┘
                        │
@@ -84,7 +83,7 @@ Four specialized AI agents working together:
 ### Prerequisites
 
 - Python 3.10+
-- PostgreSQL 14+
+- Sqlite 13+
 - Docker (optional)
 
 ### Option 1: Docker (Recommended)
@@ -289,7 +288,7 @@ await api.post("/api/sessions", {
 
 - **FastAPI** - Modern, fast Python web framework
 - **SQLAlchemy** - Powerful ORM
-- **PostgreSQL** - Reliable relational database
+- **Sqlite** - Reliable relational database
 - **Pydantic** - Data validation
 - **Python-JOSE** - JWT handling
 - **Google Auth** - OAuth integration
@@ -297,9 +296,7 @@ await api.post("/api/sessions", {
 ### AI/ML (Integration Ready)
 
 - **LangChain** - AI agent orchestration
-- **Gemini API** - Primary AI model
-- **DeepSeek API** - Secondary AI model
-- **OpenAI API** - Fallback model
+- **Groq API** - Primary AI model
 - **Vector Database** - Semantic search
 
 ### DevOps
@@ -365,15 +362,6 @@ _Raj has 3 assignments due next week. The system creates an urgent plan, suggest
 
 ---
 
-## 📚 Documentation
-
-- **[Quick Start Guide](QUICKSTART.md)** - Get running in 5 minutes
-- **[API Reference](API_REFERENCE.md)** - Complete endpoint documentation
-- **[API Examples](API_EXAMPLES.md)** - Code samples for integration
-- **[Interactive Docs](http://localhost:8000/docs)** - Swagger UI (after starting)
-
----
-
 ## 🤝 Contributing
 
 We welcome contributions! Please follow these steps:
@@ -402,9 +390,7 @@ GOOGLE_CLIENT_ID=your-client-id
 GOOGLE_CLIENT_SECRET=your-client-secret
 
 # AI APIs (for future integration)
-OPENAI_API_KEY=sk-...
-GEMINI_API_KEY=...
-DEEPSEEK_API_KEY=...
+Groq_API_KEY=sk-...
 ```
 
 ---
