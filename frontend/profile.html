@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Profile | StudySync Pro</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, var(--light) 0%, var(--card-bg) 100%);
+        }
+        .profile-container {
+            background: var(--bg-color);
+            padding: 2.5rem;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            border: 1px solid var(--gray-light);
+        }
+        .profile-header {
+            text-align: center;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--gray-light);
+            padding-bottom: 1rem;
+        }
+        .profile-header h2 {
+            color: var(--secondary);
+            margin-bottom: 0.5rem;
+        }
+        .profile-avatar {
+            width: 80px;
+            height: 80px;
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            margin: 0 auto 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="profile-container">
+        <div class="profile-header">
+            <div class="profile-avatar"><i class="fas fa-user"></i></div>
+            <h2>Edit Profile</h2>
+            <p>Update your personal information</p>
+        </div>
+        <form id="profile-form">
+            <div class="form-group">
+                <label for="profile-name">Full Name</label>
+                <input type="text" id="profile-name" required>
+            </div>
+            <div class="form-group">
+                <label for="profile-email">Email Address</label>
+                <input type="email" id="profile-email" required>
+            </div>
+            <button type="submit" class="cta-button full-width">Save Changes</button>
+            <p class="auth-footer"><a href="/">Back to Home</a></p>
+            <div id="message" style="margin-top: 1rem; text-align: center; font-size: 0.9rem;"></div>
+        </form>
+    </div>
+
+    <script>
+        const form = document.getElementById('profile-form');
+        const messageDiv = document.getElementById('message');
+        const nameInput = document.getElementById('profile-name');
+        const emailInput = document.getElementById('profile-email');
+
+        // Load user data
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (!user) {
+            window.location.href = '/';
+        } else {
+            nameInput.value = user.name;
+            emailInput.value = user.email;
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = form.querySelector('button');
+            btn.disabled = true;
+            btn.innerText = 'Saving...';
+            messageDiv.innerHTML = '';
+
+            try {
+                const response = await fetch('/api/update-profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        current_email: user.email,
+                        new_name: nameInput.value,
+                        new_email: emailInput.value
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Update local storage
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    messageDiv.innerHTML = '<span style="color: var(--success)">Profile updated successfully!</span>';
+                    btn.innerText = 'Save Changes';
+                    btn.disabled = false;
+                } else {
+                    throw new Error(data.message || 'Failed to update profile');
+                }
+            } catch (error) {
+                messageDiv.innerHTML = `<span style="color: var(--danger)">${error.message}</span>`;
+                btn.disabled = false;
+                btn.innerText = 'Save Changes';
+            }
+        });
+    </script>
+</body>
+</html>

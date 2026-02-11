@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StudySync Pro | AI-Powered Academic Recovery</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
+    <script src="https://unpkg.com/scrollreveal@4.0.9/dist/scrollreveal.min.js"></script>
+</head>
+<body>
+    <!-- Theme Toggle Button -->
+    <button class="theme-toggle" id="theme-toggle">
+        <i class="fas fa-moon"></i>
+    </button>
+    
+    <!-- Background Animation -->
+    <div class="background-animation" id="background-animation"></div>
+    
+    <!-- Header -->
+    <header>
+        <a href="#" class="logo">
+            <i class="fas fa-brain"></i>
+            StudySync<span>Pro</span>
+        </a>
+        <div class="mobile-menu">
+            <i class="fas fa-bars"></i>
+        </div>
+        <nav>
+            <ul>
+                <li><a href="#home">Home</a></li>
+                <li><a href="#features">How It Works</a></li>
+                <li><a href="#chat">Get Plan</a></li>
+                <li><a href="#viz">Analytics</a></li>
+            </ul>
+        </nav>
+        <div class="header-actions">
+            <button class="cta-button" id="start-btn">Start Recovery</button>
+            <button id="nav-login-btn" class="nav-login-btn"><i class="fas fa-sign-in-alt"></i> Login</button>
+            <div id="user-menu" class="user-menu" style="display: none;">
+                <button class="user-menu-btn" id="user-menu-btn">
+                    <i class="fas fa-user-circle"></i>
+                    <span id="user-name-display">User</span>
+                    <i class="fas fa-chevron-down" style="font-size: 0.8em;"></i>
+                </button>
+                <div class="dropdown-content">
+                    <a href="/profile"><i class="fas fa-user"></i> My Profile</a>
+                    <a href="#" id="logout-link"><i class="fas fa-sign-out-alt"></i> Logout</a>
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Hero Section -->
+    <section class="hero" id="home">
+        <div class="hero-content">
+            <h1>AI-Powered <span>Academic Recovery</span> for Students</h1>
+            <p>Get a personalized catch-up plan based on your subjects, deadlines, learning pace, and stress level. Move from overwhelmed to on-track in weeks.</p>
+            <div class="hero-buttons">
+                <button class="cta-button" id="hero-start-btn">Create My Plan</button>
+                <button class="secondary-button">How It Works</button>
+            </div>
+            <div class="hero-stats">
+                <div class="stat">
+                    <div class="stat-value">94%</div>
+                    <div class="stat-label">Improved Grades</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">2.5x</div>
+                    <div class="stat-label">Faster Learning</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">78%</div>
+                    <div class="stat-label">Stress Reduction</div>
+                </div>
+            </div>
+        </div>
+        <div id="canvas-container">
+            <!-- 3D animation will be rendered here -->
+        </div>
+    </section>
+    
+    <!-- Features Section -->
+    <section id="features">
+        <h2 class="section-title">Personalized Academic Recovery</h2>
+        <p class="section-subtitle">Our AI engine analyzes multiple factors to create a plan tailored specifically to your situation and learning style.</p>
+        <div class="features">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <h3>Weak Fundamentals Analysis</h3>
+                <p>Identify and strengthen foundational knowledge gaps with adaptive learning paths that adjust to your progress.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="fas fa-calendar-alt"></i>
+                </div>
+                <h3>Intelligent Scheduling</h3>
+                <p>Smart scheduling that optimizes study sessions based on your available time, deadlines, and cognitive load.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="fas fa-brain"></i>
+                </div>
+                <h3>Stress-Aware Planning</h3>
+                <p>Incorporate breaks and mindfulness exercises based on your stress levels to prevent burnout and improve retention.</p>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Chat Section with Background Image -->
+    <div class="bg-img-section">
+        <section id="chat">
+            <h2 class="section-title">Your Personalized Recovery Plan</h2>
+            <p class="section-subtitle">Answer a few questions to get a tailored plan that adapts to your unique situation.</p>
+            <div class="chat-container">
+                <div class="chat-header">
+                    <div class="chat-header-info">
+                        <i class="fas fa-robot"></i>
+                        <h3>StudySync Assistant</h3>
+                    </div>
+                    <div class="chat-status">
+                        <div class="chat-status-dot"></div>
+                        <span>Online</span>
+                    </div>
+                </div>
+                <div class="chat-messages" id="chat-messages">
+                    <div class="message bot-message">
+                        <p><strong>Hello! I'm your StudySync Assistant.</strong></p>
+                        <p>I'll help you create a personalized academic recovery plan. Let's start with a few questions about your current situation.</p>
+                        <p>What's your name and which grade level are you in?</p>
+                    </div>
+                </div>
+                <div class="chat-input-container">
+                    <input type="text" class="chat-input" id="user-input" placeholder="Type your response here...">
+                    <button class="send-button" id="send-btn">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+    </div>
+    
+    <!-- Visualization Section -->
+    <section id="viz">
+        <div class="viz-section">
+            <h2 class="section-title">Visualize Your Progress</h2>
+            <p class="section-subtitle">Track your recovery journey with interactive analytics and progress visualizations.</p>
+            <div class="viz-container" id="viz-container">
+                <!-- Data visualization will be rendered here -->
+            </div>
+        </div>
+    </section>
+    
+    <!-- Plan Display Section -->
+    <section id="plan-display">
+        <div class="plan-container" id="plan-container">
+            <div class="plan-header">
+                <h2>Your Personalized Academic Recovery Plan</h2>
+                <p>Generated based on your unique inputs and optimized for maximum efficiency</p>
+            </div>
+            <div class="plan-details" id="plan-details">
+                <!-- Plan details will be inserted here -->
+            </div>
+            <div class="timeline" id="timeline">
+                <!-- Timeline will be inserted here -->
+            </div>
+            <div style="text-align: center; margin-top: 3rem;">
+                <button class="cta-button" id="download-plan">Download Plan</button>
+                <button class="secondary-button" style="margin-left: 1rem;" id="schedule-plan">Add to Calendar</button>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <div class="footer-about">
+                <div class="footer-logo">StudySync<span>Pro</span></div>
+                <p>AI-powered academic recovery for students. Personalized plans that adapt to your learning style, pace, and stress levels.</p>
+            </div>
+            <div class="footer-links">
+                <h4>Product</h4>
+                <ul>
+                    <li><a href="#features">How It Works</a></li>
+                    <li><a href="#chat">Get Plan</a></li>
+                    <li><a href="#viz">Analytics</a></li>
+                    <li><a href="#">Pricing</a></li>
+                </ul>
+            </div>
+            <div class="footer-links">
+                <h4>Resources</h4>
+                <ul>
+                    <li><a href="#">Study Techniques</a></li>
+                    <li><a href="#">Stress Management</a></li>
+                    <li><a href="#">Time Management</a></li>
+                    <li><a href="#">Academic Research</a></li>
+                </ul>
+            </div>
+            <div class="footer-links">
+                <h4>Company</h4>
+                <ul>
+                    <li><a href="#">About Us</a></li>
+                    <li><a href="#">Contact</a></li>
+                    <li><a href="#">Privacy Policy</a></li>
+                    <li><a href="#">Terms of Service</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="copyright">
+            <p>&copy; 2023 StudySync Pro. All rights reserved. | AI-Powered Academic Recovery Engine</p>
+        </div>
+    </footer>
+    
+    <!-- Authentication Modal -->
+    <div class="modal" id="auth-modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <div class="auth-tabs">
+                <button class="tab-btn active" data-tab="login">Login</button>
+                <button class="tab-btn" data-tab="signup">Sign Up</button>
+            </div>
+            
+            <!-- Login Form -->
+            <form class="auth-form active" id="login-form">
+                <div class="form-group">
+                    <label for="login-email">Email</label>
+                    <input type="email" id="login-email" required placeholder="Enter your email">
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" required placeholder="Enter your password">
+                </div>
+                <button type="submit" class="cta-button full-width">Login</button>
+                <p class="auth-footer">Forgot password? <a href="#" id="forgot-password-link">Reset here</a></p>
+            </form>
+            
+            <!-- Signup Form -->
+            <form class="auth-form" id="signup-form">
+                <div class="form-group">
+                    <label for="signup-name">Full Name</label>
+                    <input type="text" id="signup-name" required placeholder="Enter your name">
+                </div>
+                <div class="form-group">
+                    <label for="signup-email">Email</label>
+                    <input type="email" id="signup-email" required placeholder="Enter your email">
+                </div>
+                <div class="form-group">
+                    <label for="signup-password">Password</label>
+                    <input type="password" id="signup-password" required placeholder="Create a password">
+                </div>
+                <button type="submit" class="cta-button full-width">Create Account</button>
+            </form>
+
+            <!-- Forgot Password Form -->
+            <form class="auth-form" id="forgot-password-form">
+                <div class="form-group">
+                    <label for="forgot-email">Email Address</label>
+                    <input type="email" id="forgot-email" required placeholder="Enter your registered email">
+                </div>
+                <button type="submit" class="cta-button full-width">Send Reset Link</button>
+                <p class="auth-footer"><a href="#" id="back-to-login">Back to Login</a></p>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js" defer></script>
+</body>
+</html>
