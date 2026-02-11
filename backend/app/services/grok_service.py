@@ -1,157 +1,191 @@
-import os
-from typing import List, Dict, Any, Optional
-from datetime import datetime
+"""
+Groq API service using LangChain.
+Handles LLM interactions with Groq's models.
+"""
 from langchain_groq import ChatGroq
-from langchain.agents import AgentExecutor, create_react_agent
-from langchain.memory import ConversationBufferWindowMemory, ConversationSummaryMemory
-from langchain.prompts import PromptTemplate
-from langchain.tools import Tool
-from langchain.schema import SystemMessage, HumanMessage, AIMessage
-from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.vectorstores import Qdrant
-from qdrant_client import QdrantClient
-from langchain.chains import LLMChain
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.prompts import ChatPromptTemplate
+from langchain.schema import HumanMessage, SystemMessage
+from typing import List, Dict, Any, Optional
 
-from app.core.config import settings
-from app.services.tools import (
-    get_youtube_recommendations,
-    create_study_plan,
-    summarize_content,
-    motivate_user,
-    search_internet
-)
+from app.config import settings
 
-class GroqTutorAgent:
-    def __init__(self, user_id: str, conversation_id: str):
-        self.user_id = user_id
-        self.conversation_id = conversation_id
-        self.llm = self._initialize_llm()
-        self.memory = self._initialize_memory()
-        self.vector_store = self._initialize_vector_store()
-        self.agent = self._initialize_agent()
+class GroqService:
+    """Service for interacting with Groq API through LangChain"""
     
-    def _initialize_llm(self):
-        return ChatGroq(
+    def __init__(self):
+        """Initialize Groq LLM with configuration"""
+        self.llm = ChatGroq(
             groq_api_key=settings.GROQ_API_KEY,
             model_name=settings.GROQ_MODEL,
             temperature=settings.TEMPERATURE,
-            max_tokens=settings.MAX_TOKENS,
-            streaming=True
+            max_tokens=settings.MAX_TOKENS
         )
-    
-    def _initialize_memory(self):
-        return ConversationBufferWindowMemory(
-            k=settings.MEMORY_WINDOW_SIZE,
-            return_messages=True,
-            memory_key="chat_history",
-            output_key="output"
-        )
-    
-    def _initialize_vector_store(self):
-        embeddings = HuggingFaceEmbeddings(
-            model_name=settings.EMBEDDING_MODEL
-        )
-        client = QdrantClient(url=settings.QDRANT_URL)
-        return Qdrant(
-            client=client,
-            collection_name=settings.QDRANT_COLLECTION,
-            embeddings=embeddings
-        )
-    
-    def _initialize_agent(self):
-        tools = [
-            Tool(
-                name="YouTubeRecommendations",
-                func=get_youtube_recommendations,
-                description="Get YouTube video recommendations for educational topics"
-            ),
-            Tool(
-                name="CreateStudyPlan",
-                func=create_study_plan,
-                description="Create a study plan with topics and deadlines"
-            ),
-            Tool(
-                name="SummarizeContent",
-                func=summarize_content,
-                description="Summarize long texts or articles"
-            ),
-            Tool(
-                name="MotivateUser",
-                func=motivate_user,
-                description="Provide motivational quotes and encouragement"
-            ),
-            Tool(
-                name="SearchInternet",
-                func=search_internet,
-                description="Search the internet for current information"
-            )
-        ]
         
-        system_prompt = """
+        # System prompt for AI Tutor
+        self.system_prompt = """
         You are an AI Tutor Assistant. Your goal is to help students learn effectively.
-        You can:
-        1. Answer academic questions
-        2. Recommend educational YouTube videos
-        3. Create study plans with deadlines
-        4. Summarize content
-        5. Provide motivation and encouragement
-        6. Help with research and explanations
         
-        Always be supportive, patient, and encouraging.
-        Use the available tools when needed.
+        Capabilities:
+        1. Answer academic questions across all subjects
+        2. Explain concepts in simple, understandable terms
+        3. Create structured study plans with deadlines
+        4. Recommend educational resources
+        5. Provide motivation and encouragement
+        6. Help with problem-solving and critical thinking
+        
+        Teaching Style:
+        - Be patient, supportive, and encouraging
+        - Break down complex topics into manageable parts
+        - Use analogies and examples when helpful
+        - Check for understanding periodically
+        - Adapt to the student's learning style
+        
+        Always aim to build confidence and foster a love for learning.
+        """
+    
+    async def generate_response(
+        self, 
+        message: str, 
+        context: Optional[str] = None
+    ) -> str:
+        """
+        Generate a response using Groq LLM.
+        
+        Args:
+            message: User's message
+            context: Optional context or conversation history
+            
+        Returns:
+            str: AI-generated response
+        """
+        try:
+            # Prepare messages
+            messages = [
+                SystemMessage(content=self.system_prompt),
+                HumanMessage(content=message)
+            ]
+            
+            # Add context if provided
+            if context:
+                messages.insert(1, SystemMessage(content=f"Context: {context}"))
+            
+            # Generate response
+            response = await self.llm.agenerate([messages])
+            return response.generations[0][0].text
+            
+        except Exception as e:
+            return f"I encountered an error: {str(e)}. Please try again."
+    
+    async def generate_streaming_response(
+        self, 
+        message: str, 
+        context: Optional[str] = None
+    ):
+        """
+        Generate a streaming response using Groq LLM.
+        
+        Args:
+            message: User's message
+            context: Optional context
+            
+        Yields:
+            str: Chunks of the AI-generated response
+        """
+        try:
+            # Prepare messages
+            messages = [
+                SystemMessage(content=self.system_prompt),
+                HumanMessage(content=message)
+            ]
+            
+            # Add context if provided
+            if context:
+                messages.insert(1, SystemMessage(content=f"Context: {context}"))
+            
+            # Stream response
+            async for chunk in self.llm.astream(messages):
+                if hasattr(chunk, 'content'):
+                    yield chunk.content
+                    
+        except Exception as e:
+            yield f"I encountered an error: {str(e)}. Please try again."
+    
+    async def create_study_plan(
+        self, 
+        topic: str, 
+        days: int, 
+        hours_per_day: int = 2
+    ) -> str:
+        """
+        Create a structured study plan.
+        
+        Args:
+            topic: Subject to study
+            days: Number of days available
+            hours_per_day: Hours per day for studying
+            
+        Returns:
+            str: Detailed study plan
+        """
+        prompt = f"""
+        Create a detailed study plan for learning {topic}.
+        
+        Requirements:
+        - Duration: {days} days, {hours_per_day} hours per day
+        - Include daily topics and objectives
+        - Include recommended resources
+        - Include practice exercises
+        - Include assessment methods
+        - Make it realistic and achievable
+        
+        Format the plan clearly with sections for each week/day.
         """
         
-        prompt = PromptTemplate.from_template(system_prompt)
-        
-        return create_react_agent(
-            llm=self.llm,
-            tools=tools,
-            prompt=prompt
-        )
+        return await self.generate_response(prompt)
     
-    async def process_message(self, message: str) -> str:
-        try:
-            agent_executor = AgentExecutor(
-                agent=self.agent,
-                tools=self.agent.tools,
-                memory=self.memory,
-                verbose=True,
-                handle_parsing_errors=True
-            )
+    async def summarize_text(self, text: str, max_length: int = 300) -> str:
+        """
+        Summarize long text content.
+        
+        Args:
+            text: Text to summarize
+            max_length: Maximum length of summary
             
-            response = await agent_executor.ainvoke({"input": message})
+        Returns:
+            str: Concise summary
+        """
+        prompt = f"""
+        Summarize the following text in {max_length} words or less:
+        
+        {text}
+        
+        Focus on the main ideas and key points.
+        Keep the summary clear and concise.
+        """
+        
+        return await self.generate_response(prompt)
+    
+    async def motivate_user(self, mood: str = "neutral") -> str:
+        """
+        Provide motivational messages based on user's mood.
+        
+        Args:
+            mood: User's current mood
             
-            self._store_in_memory(message, response["output"])
-            
-            return response["output"]
-        except Exception as e:
-            return f"Error processing message: {str(e)}"
-    
-    def _store_in_memory(self, query: str, response: str):
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=500,
-            chunk_overlap=50
-        )
+        Returns:
+            str: Motivational message
+        """
+        prompt = f"""
+        The student is feeling {mood}. 
+        Provide an encouraging and motivational message.
         
-        texts = text_splitter.split_text(f"Q: {query}\nA: {response}")
+        Include:
+        1. Acknowledge their feelings
+        2. Offer encouragement
+        3. Share a relevant quote or insight
+        4. Suggest a small, actionable step
         
-        metadatas = [{
-            "user_id": self.user_id,
-            "conversation_id": self.conversation_id,
-            "timestamp": datetime.now().isoformat(),
-            "type": "conversation"
-        } for _ in texts]
+        Be supportive and uplifting.
+        """
         
-        self.vector_store.add_texts(texts, metadatas=metadatas)
-    
-    def search_memory(self, query: str, k: int = 5):
-        return self.vector_store.similarity_search(query, k=k)
-    
-    async def get_conversation_summary(self):
-        if hasattr(self.memory, 'predict_new_summary'):
-            messages = self.memory.chat_memory.messages
-            if len(messages) > 2:
-                return self.memory.predict_new_summary(messages, "")
-        return "No summary available"
+        return await self.generate_response(prompt)

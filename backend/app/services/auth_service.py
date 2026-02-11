@@ -1,194 +1,152 @@
-from pydantic import BaseModel, EmailStr, Field, validator
-from typing import Optional, List
-from datetime import datetime
-from enum import Enum
+"""
+Authentication service for user management and JWT tokens.
+Handles password hashing, token creation, and verification.
+"""
+from datetime import datetime, timedelta
+from typing import Optional
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
-# Enums
-class PriorityLevel(str, Enum):
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    URGENT = "urgent"
+from app.config import settings
+from app.models.user import User
 
-class TaskStatus(str, Enum):
-    PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    OVERDUE = "overdue"
+# Password hashing context
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# User Schemas
-class UserBase(BaseModel):
-    email: EmailStr
-    username: str
-    full_name: Optional[str] = None
-
-class UserCreate(UserBase):
-    google_id: Optional[str] = None
-    profile_picture: Optional[str] = None
-
-class UserUpdate(BaseModel):
-    full_name: Optional[str] = None
-    default_study_hours_per_day: Optional[float] = None
-    learning_pace: Optional[str] = None
-    stress_level: Optional[int] = Field(None, ge=1, le=10)
-
-class UserResponse(UserBase):
-    id: int
-    google_id: Optional[str]
-    profile_picture: Optional[str]
-    default_study_hours_per_day: float
-    learning_pace: str
-    stress_level: int
-    is_active: bool
-    created_at: datetime
+class AuthService:
+    """Service for authentication operations"""
     
-    class Config:
-        from_attributes = True
-
-# Subject Schemas
-class SubjectBase(BaseModel):
-    name: str
-    code: Optional[str] = None
-    description: Optional[str] = None
-    difficulty_level: Optional[str] = "medium"
-    total_chapters: Optional[int] = 0
-    credits: Optional[int] = None
-
-class SubjectCreate(SubjectBase):
-    pass
-
-class SubjectUpdate(BaseModel):
-    name: Optional[str] = None
-    code: Optional[str] = None
-    description: Optional[str] = None
-    difficulty_level: Optional[str] = None
-    total_chapters: Optional[int] = None
-    completed_chapters: Optional[int] = None
-    backlog_level: Optional[int] = Field(None, ge=0, le=100)
-    confidence_score: Optional[float] = Field(None, ge=0, le=100)
-
-class SubjectResponse(SubjectBase):
-    id: int
-    user_id: int
-    completed_chapters: int
-    backlog_level: int
-    confidence_score: float
-    created_at: datetime
-    updated_at: datetime
+    @staticmethod
+    def verify_password(plain_password: str, hashed_password: str) -> bool:
+        """
+        Verify a plain password against a hashed password.
+        
+        Args:
+            plain_password: Plain text password
+            hashed_password: Hashed password from database
+            
+        Returns:
+            bool: True if password matches
+        """
+        return pwd_context.verify(plain_password, hashed_password)
     
-    class Config:
-        from_attributes = True
-
-# Task Schemas
-class TaskBase(BaseModel):
-    title: str
-    description: Optional[str] = None
-    task_type: Optional[str] = None
-    subject_id: Optional[int] = None
-    priority: Optional[PriorityLevel] = PriorityLevel.MEDIUM
-    deadline: Optional[datetime] = None
-    estimated_hours: Optional[float] = None
-
-class TaskCreate(TaskBase):
-    pass
-
-class TaskUpdate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    task_type: Optional[str] = None
-    subject_id: Optional[int] = None
-    priority: Optional[PriorityLevel] = None
-    status: Optional[TaskStatus] = None
-    deadline: Optional[datetime] = None
-    estimated_hours: Optional[float] = None
-    completed_hours: Optional[float] = None
-
-class TaskResponse(TaskBase):
-    id: int
-    user_id: int
-    status: TaskStatus
-    completed_hours: float
-    created_at: datetime
-    updated_at: datetime
-    completed_at: Optional[datetime]
+    @staticmethod
+    def get_password_hash(password: str) -> str:
+        """
+        Hash a plain password.
+        
+        Args:
+            password: Plain text password
+            
+        Returns:
+            str: Hashed password
+        """
+        return pwd_context.hash(password)
     
-    class Config:
-        from_attributes = True
-
-# Study Session Schemas
-class StudySessionBase(BaseModel):
-    subject_id: Optional[int] = None
-    start_time: datetime
-    session_type: Optional[str] = "focused"
-
-class StudySessionCreate(StudySessionBase):
-    pass
-
-class StudySessionUpdate(BaseModel):
-    end_time: Optional[datetime] = None
-    duration_minutes: Optional[int] = None
-    productivity_rating: Optional[int] = Field(None, ge=1, le=5)
-    notes: Optional[str] = None
-    break_count: Optional[int] = None
-    total_break_minutes: Optional[int] = None
-
-class StudySessionResponse(StudySessionBase):
-    id: int
-    user_id: int
-    end_time: Optional[datetime]
-    duration_minutes: Optional[int]
-    productivity_rating: Optional[int]
-    notes: Optional[str]
-    break_count: int
-    total_break_minutes: int
-    created_at: datetime
+    @staticmethod
+    def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+        """
+        Create a JWT access token.
+        
+        Args:
+            data: Dictionary containing token claims
+            expires_delta: Optional custom expiration time
+            
+        Returns:
+            str: Encoded JWT token
+        """
+        to_encode = data.copy()
+        if expires_delta:
+            expire = datetime.utcnow() + expires_delta
+        else:
+            expire = datetime.utcnow() + timedelta(
+                minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+            )
+        to_encode.update({"exp": expire})
+        encoded_jwt = jwt.encode(
+            to_encode, 
+            settings.SECRET_KEY, 
+            algorithm=settings.ALGORITHM
+        )
+        return encoded_jwt
     
-    class Config:
-        from_attributes = True
-
-# Auth Schemas
-class Token(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-
-class TokenData(BaseModel):
-    user_id: Optional[int] = None
-    email: Optional[str] = None
-
-class GoogleAuthRequest(BaseModel):
-    token: str
-
-# Analytics Schemas
-class SubjectProgress(BaseModel):
-    subject_id: int
-    subject_name: str
-    progress_percentage: float
-    completed_chapters: int
-    total_chapters: int
-    confidence_score: float
-
-class DashboardAnalytics(BaseModel):
-    total_subjects: int
-    total_tasks: int
-    pending_tasks: int
-    completed_tasks: int
-    total_study_hours: float
-    subjects_progress: List[SubjectProgress]
-    upcoming_deadlines: List[TaskResponse]
-
-# Conversation Schemas
-class ConversationCreate(BaseModel):
-    agent_type: str
-    user_message: str
-    context: Optional[dict] = None
-
-class ConversationResponse(BaseModel):
-    id: int
-    agent_type: str
-    user_message: str
-    agent_response: str
-    context: Optional[dict]
-    created_at: datetime
+    @staticmethod
+    def verify_token(token: str) -> Optional[dict]:
+        """
+        Verify and decode a JWT token.
+        
+        Args:
+            token: JWT token string
+            
+        Returns:
+            Optional[dict]: Decoded token payload or None if invalid
+        """
+        try:
+            payload = jwt.decode(
+                token, 
+                settings.SECRET_KEY, 
+                algorithms=[settings.ALGORITHM]
+            )
+            return payload
+        except JWTError:
+            return None
     
-    class Config:
-        from_attributes = True
+    @staticmethod
+    async def authenticate_user(
+        db: AsyncSession, 
+        username: str, 
+        password: str
+    ) -> Optional[User]:
+        """
+        Authenticate a user with username/email and password.
+        
+        Args:
+            db: Database session
+            username: Username or email
+            password: Plain text password
+            
+        Returns:
+            Optional[User]: User object if authentication successful
+        """
+        # Try to find user by username or email
+        stmt = select(User).where(
+            (User.username == username) | (User.email == username)
+        )
+        result = await db.execute(stmt)
+        user = result.scalar_one_or_none()
+        
+        if not user:
+            return None
+        if not AuthService.verify_password(password, user.hashed_password):
+            return None
+        return user
+    
+    @staticmethod
+    async def get_current_user(
+        db: AsyncSession, 
+        token: str
+    ) -> Optional[User]:
+        """
+        Get current user from JWT token.
+        
+        Args:
+            db: Database session
+            token: JWT token
+            
+        Returns:
+            Optional[User]: User object if token is valid
+        """
+        payload = AuthService.verify_token(token)
+        if payload is None:
+            return None
+        
+        username: str = payload.get("sub")
+        if username is None:
+            return None
+        
+        stmt = select(User).where(User.username == username)
+        result = await db.execute(stmt)
+        user = result.scalar_one_or_none()
+        return user

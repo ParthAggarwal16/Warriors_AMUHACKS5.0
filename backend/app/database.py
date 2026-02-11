@@ -1,39 +1,48 @@
-from pydantic_settings import BaseSettings
-from typing import List
+"""
+Database configuration and session management.
+Sets up SQLAlchemy engine, session factory, and base class.
+"""
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.pool import NullPool
 
-class Settings(BaseSettings):
-    # App Settings
-    APP_NAME: str = "StudySyncPro"
-    DEBUG: bool = True
-    
-    # Database
-    DATABASE_URL: str = "postgresql://user:password@localhost:5432/studysyncpro"
-    
-    # JWT Settings
-    SECRET_KEY: str = "your-secret-key-change-this-in-production"
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
-    
-    # Google OAuth
-    GOOGLE_CLIENT_ID: str = ""
-    GOOGLE_CLIENT_SECRET: str = ""
-    GOOGLE_REDIRECT_URI: str = "http://localhost:3000/auth/callback"
-    
-    # CORS
-    CORS_ORIGINS: List[str] = [
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173"
-    ]
-    
-    # AI API Keys (for future integration)
-    OPENAI_API_KEY: str = ""
-    GEMINI_API_KEY: str = ""
-    DEEPSEEK_API_KEY: str = ""
-    
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+from app.config import settings
 
-settings = Settings()
+# Create async engine
+engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=settings.DEBUG,
+    future=True,
+    poolclass=NullPool
+)
+
+# Create session factory
+AsyncSessionLocal = sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False
+)
+
+# Create declarative base
+Base = declarative_base()
+
+async def get_db() -> AsyncSession:
+    """
+    Dependency function to get database session.
+    
+    Yields:
+        AsyncSession: Database session for the request
+    """
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        finally:
+            await session.close()
+
+async def init_db():
+    """
+    Initialize database tables.
+    Creates all tables defined in SQLAlchemy models.
+    """
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)

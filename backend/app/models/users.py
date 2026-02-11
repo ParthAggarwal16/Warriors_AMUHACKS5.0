@@ -1,76 +1,25 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from typing import List
+"""
+User model for SQLAlchemy.
+Defines the database schema for user authentication and profile.
+"""
+from sqlalchemy import Column, Integer, String, DateTime, Boolean
+from sqlalchemy.sql import func
+from app.database import Base
 
-from database import get_db
-from models import User
-from schemas import UserResponse, UserUpdate
-from backend.app.api.auth import get_current_user
-
-router = APIRouter()
-
-@router.get("/me", response_model=UserResponse)
-async def get_current_user_profile(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Get current user profile
-    """
-    return current_user
-
-@router.put("/me", response_model=UserResponse)
-async def update_user_profile(
-    user_update: UserUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Update current user profile
-    """
-    update_data = user_update.model_dump(exclude_unset=True)
+class User(Base):
+    """User model for authentication and profile storage"""
     
-    for field, value in update_data.items():
-        setattr(current_user, field, value)
+    __tablename__ = "users"
     
-    db.commit()
-    db.refresh(current_user)
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    username = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    full_name = Column(String)
+    is_active = Column(Boolean, default=True)
+    is_verified = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
-    return current_user
-
-@router.delete("/me")
-async def delete_user_account(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Delete current user account
-    """
-    db.delete(current_user)
-    db.commit()
-    
-    return {"message": "Account deleted successfully"}
-
-@router.get("/{user_id}", response_model=UserResponse)
-async def get_user_by_id(
-    user_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Get user by ID (admin or self only)
-    """
-    if current_user.id != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to view this user"
-        )
-    
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-    
-    return user
+    def __repr__(self):
+        return f"<User(id={self.id}, username={self.username}, email={self.email})>"
