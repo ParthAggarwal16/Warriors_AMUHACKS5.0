@@ -19,7 +19,8 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_file=".env",
-        case_sensitive=True
+        case_sensitive=True,
+        extra="forbid"  # ensures only defined fields are allowed
     )
 
     # Application
@@ -30,7 +31,7 @@ class Settings(BaseSettings):
 
     # Groq Configuration
     GROQ_API_KEY: str
-    GROQ_MODEL: str = "mixtral-8x7b-32768"
+    GROQ_MODEL: str 
 
     # YouTube Configuration
     YOUTUBE_API_KEY: str
@@ -39,7 +40,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str
 
     # Qdrant Configuration
-    QDRANT_URL: str = "http://localhost:6333"
+    QDRANT_URL: str  # e.g., "https://<your-cluster-id>.us-east4-0.gcp.cloud.qdrant.io"
+    QDRANT_API_KEY: str  # <--- add this for Qdrant Cloud authentication
     QDRANT_COLLECTION_NAME: str = "conversation_memory"
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
 

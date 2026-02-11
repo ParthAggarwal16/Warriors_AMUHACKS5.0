@@ -1,28 +1,31 @@
 """
 Groq API service using LangChain 1.x.
-Handles LLM interactions with Groq's models.
+Handles LLM interactions with Groq's models and Qdrant memory for conversation context.
 """
 
-from typing import Optional, AsyncGenerator
+from typing import Optional, AsyncGenerator, List, Dict, Any
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage
+import uuid
 
 from app.config import settings
+from app.services.qdrant_service import QdrantService  # Qdrant memory service
 
 
 class GroqService:
-    """Service for interacting with Groq API through LangChain"""
+    """Service for interacting with Groq API through LangChain with memory"""
 
     def __init__(self):
-        """Initialize Groq LLM with configuration"""
+        """Initialize Groq LLM and Qdrant memory service"""
         self.llm = ChatGroq(
             groq_api_key=settings.GROQ_API_KEY,
-            model=settings.GROQ_MODEL,  # IMPORTANT: model (not model_name in v1.x)
+            model=settings.GROQ_MODEL,
             temperature=settings.TEMPERATURE,
             max_tokens=settings.MAX_TOKENS,
         )
 
-        # System prompt for AI Tutor
+        self.qdrant_service = QdrantService()  # Memory service
+
         self.system_prompt = """
 You are an AI Tutor Assistant. Your goal is to help students learn effectively.
 
@@ -45,70 +48,124 @@ Always aim to build confidence and foster a love for learning.
 """
 
     # ------------------------------------------------------------------
-    # Standard Response
+    # Streaming Response with Memory
+    # ------------------------------------------------------------------
+    async def generate_streaming_response(
+        self,
+        user_id: int,
+        conversation_id: str,
+        message: str,
+        memory_limit: int = 5,
+    ) -> AsyncGenerator[str, None]:
+        """
+        Stream AI response including memory context:
+        - Retrieves last N messages from Qdrant
+        - Combines with user query
+        - Streams response
+        - Stores messages and prunes older messages
+        """
+        try:
+            # Retrieve previous messages inside this service
+            recent_messages = await self.qdrant_service.retrieve_recent_messages(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                limit=memory_limit
+            )
+
+            # Build context
+            context_text = "\n".join(
+                [f"{m['role'].capitalize()}: {m['content']}" for m in recent_messages]
+            )
+
+            # Prepare messages for LLM
+            messages = [SystemMessage(content=self.system_prompt)]
+            if context_text:
+                messages.append(SystemMessage(content=f"Context:\n{context_text}"))
+            messages.append(HumanMessage(content=message))
+
+            # Stream response and accumulate content for storage
+            ai_response_content = ""
+            async for chunk in self.llm.astream(messages):
+                if chunk.content:
+                    ai_response_content += chunk.content
+                    yield chunk.content
+
+            # Store user query + AI response in Qdrant
+            await self.qdrant_service.store_conversation(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                messages=[
+                    {"role": "user", "content": message},
+                    {"role": "assistant", "content": ai_response_content},
+                ]
+            )
+
+            # Prune old messages to keep only last N
+            await self.qdrant_service.prune_old_messages(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                keep_last=memory_limit
+            )
+
+        except Exception as e:
+            yield f"I encountered an error: {str(e)}. Please try again."
+
+    # ------------------------------------------------------------------
+    # Standard Response (non-stream, with memory)
     # ------------------------------------------------------------------
     async def generate_response(
         self,
+        user_id: int,
+        conversation_id: str,
         message: str,
-        context: Optional[str] = None,
+        memory_limit: int = 5,
     ) -> str:
         """
-        Generate a response using Groq LLM.
-
-        Args:
-            message: User's message
-            context: Optional conversation context
-
-        Returns:
-            AI-generated response
+        Generate a standard AI response using memory context.
+        Retrieves previous messages automatically.
         """
         try:
-            messages = [
-                SystemMessage(content=self.system_prompt)
-            ]
+            # Retrieve recent messages
+            recent_messages = await self.qdrant_service.retrieve_recent_messages(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                limit=memory_limit
+            )
 
-            if context:
-                messages.append(SystemMessage(content=f"Context: {context}"))
+            # Build context
+            context_text = "\n".join(
+                [f"{m['role'].capitalize()}: {m['content']}" for m in recent_messages]
+            )
 
+            messages = [SystemMessage(content=self.system_prompt)]
+            if context_text:
+                messages.append(SystemMessage(content=f"Context:\n{context_text}"))
             messages.append(HumanMessage(content=message))
 
+            # Get AI response
             response = await self.llm.ainvoke(messages)
+
+            # Store conversation
+            await self.qdrant_service.store_conversation(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                messages=[
+                    {"role": "user", "content": message},
+                    {"role": "assistant", "content": response.content},
+                ]
+            )
+
+            # Prune old messages
+            await self.qdrant_service.prune_old_messages(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                keep_last=memory_limit
+            )
 
             return response.content
 
         except Exception as e:
             return f"I encountered an error: {str(e)}. Please try again."
-
-    # ------------------------------------------------------------------
-    # Streaming Response
-    # ------------------------------------------------------------------
-    async def generate_streaming_response(
-        self,
-        message: str,
-        context: Optional[str] = None,
-    ) -> AsyncGenerator[str, None]:
-        """
-        Generate streaming response.
-
-        Yields:
-            Response chunks
-        """
-        try:
-            messages = [
-                SystemMessage(content=self.system_prompt)
-            ]
-
-            if context:
-                messages.append(SystemMessage(content=f"Context: {context}"))
-
-            messages.append(HumanMessage(content=message))
-
-            async for chunk in self.llm.astream(messages):
-                if chunk.content:
-                    yield chunk.content
-
-        except Exception as e:
-            yield f"I encountered an error: {str(e)}. Please try again."
 
     # ------------------------------------------------------------------
     # Study Plan Generator
@@ -133,8 +190,12 @@ Requirements:
 
 Format clearly with structured sections.
 """
-
-        return await self.generate_response(prompt)
+        return await self.generate_response(
+            user_id=0,  # dummy user_id for study plan
+            conversation_id=str(topic),  # dummy conversation
+            message=prompt,
+            memory_limit=0  # no memory needed
+        )
 
     # ------------------------------------------------------------------
     # Text Summarizer
@@ -151,24 +212,9 @@ Summarize the following text in {max_length} words or less:
 
 Focus on key ideas and keep it concise.
 """
-
-        return await self.generate_response(prompt)
-
-    # ------------------------------------------------------------------
-    # Motivation Generator
-    # ------------------------------------------------------------------
-    async def motivate_user(self, mood: str = "neutral") -> str:
-        prompt = f"""
-The student is feeling {mood}.
-Provide a motivational message.
-
-Include:
-1. Acknowledge their feelings
-2. Encouragement
-3. A short inspiring quote
-4. One small actionable step
-
-Be supportive and uplifting.
-"""
-
-        return await self.generate_response(prompt)
+        return await self.generate_response(
+            user_id=0,
+            conversation_id=str(hash(text)),
+            message=prompt,
+            memory_limit=0
+        )
