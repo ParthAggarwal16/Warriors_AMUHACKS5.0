@@ -6,7 +6,7 @@ from google.auth.transport import requests as google_requests
 from database import get_db
 from models import User
 from schemas import Token, GoogleAuthRequest, UserResponse
-from auth import create_access_token
+from backend.app.api.auth import create_access_token
 from config import settings
 
 router = APIRouter()
@@ -90,7 +90,7 @@ async def verify_token_endpoint(
     """
     Verify if a JWT token is valid
     """
-    from auth import verify_token
+    from backend.app.api.auth import verify_token
     
     try:
         token_data = verify_token(token)
