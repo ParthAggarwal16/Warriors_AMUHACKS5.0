@@ -1,29 +1,33 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy.orm import Session
 from contextlib import asynccontextmanager
 import uvicorn
 
-from app.api import auth, chat, tutor
-from app.db.session import engine, Base
-from app.core.config import settings
+from database import get_db, engine, Base
+from routers import auth, users, subjects, tasks, study_sessions, analytics
+from config import settings
+
+# Create tables
+Base.metadata.create_all(bind=engine)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # Startup
+    print("🚀 Starting StudySyncPro Backend...")
     yield
-    await engine.dispose()
+    # Shutdown
+    print("👋 Shutting down StudySyncPro Backend...")
 
 app = FastAPI(
-    title="AI Tutor API",
-    description="AI Tutor with LangChain, Groq API and Qdrant Memory",
+    title="StudySyncPro API",
+    description="AI-Powered Academic Recovery Engine Backend",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
     lifespan=lifespan
 )
 
+# CORS Configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -32,24 +36,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.add_middleware(GZipMiddleware, minimum_size=1000)
-
+# Include routers
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
-app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])
-app.include_router(tutor.router, prefix="/api/tutor", tags=["Tutor Tools"])
+app.include_router(users.router, prefix="/api/users", tags=["Users"])
+app.include_router(subjects.router, prefix="/api/subjects", tags=["Subjects"])
+app.include_router(tasks.router, prefix="/api/tasks", tags=["Tasks"])
+app.include_router(study_sessions.router, prefix="/api/sessions", tags=["Study Sessions"])
+app.include_router(analytics.router, prefix="/api/analytics", tags=["Analytics"])
 
 @app.get("/")
 async def root():
-    return {"message": "AI Tutor API", "status": "running"}
+    return {
+        "message": "StudySyncPro API",
+        "version": "1.0.0",
+        "status": "running",
+        "docs": "/docs"
+    }
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    return {"status": "healthy", "database": "connected"}
 
 if __name__ == "__main__":
     uvicorn.run(
-        "app.main:app",
-        host=settings.HOST,
-        port=settings.PORT,
-        reload=settings.DEBUG
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True
     )
